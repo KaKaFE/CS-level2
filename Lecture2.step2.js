@@ -172,4 +172,4 @@ let sortCredit = function (sortedGrade) {
 // addLecture('알고리즘', 'A', 3, true);
 // removeLecture(gradesData, '알고리즘', 2000);
 // sortGrade(gradesData, gradeMap);
-showSortGrade(gradesData, gradeMap);
+// showSortGrade(gradesData, gradeMap);
