@@ -65,14 +65,69 @@ const taskProgram = {
         array.forEach(v => {
             console.log(` - ${v.id}번, ${v.name}`);
         });
+    },
+    numberingOfTags(tagNameArray) {
+        const numberOfTags = tagNameArray.reduce((x, y) => {
+            x[y] = ++x[y] || 1;
+            return x;
+        }, {});
+        return numberOfTags;
+    },
+    filteringHavigTag() {
+        const arrayHavingTag = this.taskArray.filter(v => v.tag.length > 0);
+        return arrayHavingTag;
+    },
+    showTags() {
+        const tagNameArray = [];
+        const arrayHavingTag = this.filteringHavigTag();
+        arrayHavingTag.forEach(v => tagNameArray.push(v.tag));
+        const uniqueTagNameArray = [...new Set(tagNameArray)];
+        const numberOfTags = this.numberingOfTags(tagNameArray);
+        this.loopTagName(uniqueTagNameArray, numberOfTags, arrayHavingTag);
+    },
+    loopTagName(uniqueTagNameArray, numberOfTags, arrayHavingTag) {
+        for (let i = 0; i < uniqueTagNameArray.length; i++) {
+            const [tagName, numbertag] = [Object.keys(numberOfTags)[i], numberOfTags[Object.keys(numberOfTags)[i]]];
+            console.log(`[${tagName}, 총 ${numbertag}개]`);
+            this.loopHavingTagArray(arrayHavingTag, tagName);
+            console.log(``);
+        }
+    },
+    loopHavingTagArray(arrayHavingTag, tagName) {
+        for (let obj of arrayHavingTag) {
+            if (obj.tag === tagName) {
+                console.log(` - ${obj.id}번, ${obj.name}, [${obj.state}]`);
+            }
+        }
+    },
+    show(str) {
+        const states = str.replace(/(\s*)/g, "").toLowerCase();
+        let todo, doing, done, userWantStateArray;
+        [todo, doing, done] = this.filteringStates(this.taskArray);
+        userWantStateArray = (states === todo[0].state) ? todo :
+                             (states === doing[0].state) ? doing :
+                             (states === done[0].state) ? done : '입력값 오류';
+        this.arrayConsoleLog(userWantStateArray);
+    },
+    arrayConsoleLog(array) {
+        array.forEach(v => {
+            if(v.tag.length === 0) {
+                console.log(` - ${v.id}번, ${v.name}`);
+            } else{
+                console.log(` - ${v.id}번, ${v.name}, [${v.tag}]`);
+            }
+        });
     }
 };
+
 taskProgram.add({ name: '친구만나기' });
 taskProgram.add({ name: '숨쉬기', tag: 'working' });
 taskProgram.add({ name: '밥먹기', tag: 'Working' });
-taskProgram.add({ name: '손씻기', tag: 'worKing' });
+taskProgram.add({ name: '손씻기', tag: 'programing' });
+taskProgram.add({ name: '콜라먹기', tag: 'Drinking' });
 taskProgram.update({ id: 1, nextstatus: 'Doing' });
 taskProgram.update({ id: 2, nextstatus: 'donE' });
 // taskProgram.remove({ id: 0 });
 taskProgram.showTag('workinG');
-
+taskProgram.showTags();
+taskProgram.show('   toDo      ');
