@@ -5,10 +5,11 @@ const taskProgram = {
     setTimeArray: [2000, 5000, 7000],
     clipBoard: Object.seal(new Array(3).fill(undefined)),
     //  클립보드에 실행된 함수의 함수와, 인자를 클립보드에 저장하는 함수
-    addclip(name, argument, id, pastState = 0) {
+    addclip(name, argument, id, pastState = 0, removedTodo = 0) {
         const Savedfunc = Object.create({});
         [Savedfunc.function, Savedfunc.argument, Savedfunc.id] = [name, argument, id];
         Savedfunc.pastState = pastState;
+        Savedfunc.removedTodo = removedTodo;
         if (this.clipBoard[0] === undefined) {
             this.clipBoard[0] = Savedfunc;
         } else {
@@ -26,16 +27,20 @@ const taskProgram = {
     //  클립보드 array의 가장최근실행된 0번째 함수를 재실행
     redo() {
         let redofunc = this.clipBoard[0].function.bind(taskProgram)
-        redofunc(this.clipBoard[0].argument);
+        redofunc(this.clipBoard[0].argument, 1);
     },
     undo() {
-        const obj = this.clipBoard[0]
+        let obj = this.clipBoard[0]
+        let cloneObj = {...obj}
         if (obj.function.name === 'add') {
-            this.remove({ id: obj.id })
+            this.remove({ id: obj.id }, 1)
         } else if (obj.function.name === 'update') {
-            // 1은 인자값이 있음을 의미 첫번째 1은 역순업데이트, 두번째 1은 redo/undo는 clipBoard에 추가하지 않는다.
-            // 인자를 넣지 않을시 clipBoard 에 추가.
-            this.update({ id: obj.id, nextstatus: obj.pastState }, 1, 1)
+            [cloneObj.argument.nextstatus, cloneObj.pastState] = [cloneObj.pastState, cloneObj.argument.nextstatus]
+            // 1인 인자값이 존재할시redo/undo수행시 실행함수를clipBoard에 추가하지 않는다.
+            this.update(cloneObj.argument, 1);
+        } else if (obj.function.name === 'remove') {
+            console.log('[alert] remove를 실행취소할시 state값은 삭제될때의 상태로 추가됩니다.')
+            this.add(obj.removedTodo, 1);
         }
     },
     add(obj, redoundo = 0) {
@@ -43,7 +48,7 @@ const taskProgram = {
             const newTodo = Object.create({});
             this.checkTag(obj);
             [newTodo.id, newTodo.name, newTodo.tag, newTodo.state] =
-                [taskProgram.taskCount, obj.name.toLowerCase(), obj.tag.toLowerCase(), 'todo'];
+                [taskProgram.taskCount, obj.name.toLowerCase(), obj.tag.toLowerCase(), obj.state || 'todo'];
             this.increaseTaskCount();
             this.taskArray.push(newTodo);
             if (redoundo === 0) this.addclip(this.add, obj, newTodo.id)
@@ -103,37 +108,39 @@ const taskProgram = {
             return this.settime(n + 1, statesArray, setTimeArray)
         }
     },
-    update(obj, reverse = 0, undoredo = 0) {
-        if (this.checkId(obj)) {
-            this.checkState(obj);
-            let [id, updatedName, pastState, updatedStatus] = this.checkReverse(obj, reverse)
+    update(obj, undoredo = 0) {
+        if (this.checkId(obj) && this.checkState(obj)) {
+            let [id, updatedName, pastState, updatedStatus] = this.updatingState(obj)
             if (undoredo === 0) this.addclip(this.update, obj, id, pastState);
             console.log(`id : ${id}, "${updatedName}" 항목이 ${pastState} => ${updatedStatus} 상태로 업데이트 됐습니다 `);
             return this.showState();
         }
     },
-    checkReverse(obj, reverse) {
-        if (reverse === 1) {
-            let updatedStatus, id, updatedName, pastState;
-            id = obj.id;
-            this.taskArray.forEach(v => {
-                if (v.id === id) {
-                    [updatedName, pastState, v.state] = [v.name, v.state, v.pastState];
-                    updatedStatus = obj.nextstatus;
-                }
-            });
-            return [id, updatedName, pastState, updatedStatus]
-        } else {
-            let updatedStatus, id, updatedName, pastState;
-            [updatedStatus, id] = [obj.nextstatus.toLowerCase(), obj.id];
-            this.taskArray.forEach(v => {
-                if (v.id === id) {
-                    v.pastState = v.state;
-                    [updatedName, pastState, v.state] = [v.name, v.state, updatedStatus];
-                }
-            });
-            return [id, updatedName, pastState, updatedStatus]
+    checkParametertype(obj) {
+        if (typeof (obj) === 'string') {
+
         }
+    },
+    transObj(obj) {
+        let inputValue = obj.match(/\S/g).join('').match(/\d*\$\w*/).join('').toLowerCase()
+        let id, state
+        let transObj = {}
+        if (inputValue) {
+            [id, state] = [inputValue.match(/\d*/), inputValue.match(/[^0-9\$]\w*/)]
+        } else {
+            console.log('"id값$state값" 의 형식으로 값을 입력해주세요');
+        }
+    },
+    updatingState(obj) {
+        let updatedStatus, id, updatedName, pastState;
+        [updatedStatus, id] = [obj.nextstatus.toLowerCase().match(/\btodo|doing|done/g).join(''), obj.id];
+        this.taskArray.forEach(v => {
+            if (v.id === id) {
+                v.pastState = v.state;
+                 [updatedName, pastState, v.state] = [v.name, v.state, updatedStatus];
+            }
+        });
+        return [id, updatedName, pastState, updatedStatus]
     },
     checkId(obj) {
         if (obj.id > this.taskCount) {
@@ -149,18 +156,28 @@ const taskProgram = {
         return false;
     },
     checkState(obj) {
-        const changedstate = obj.nextstatus.toLowerCase()
-        let sameObj = this.findArray(obj)
-        let userWantObj = this.taskArray[this.taskArray.indexOf(...sameObj)]
-        if (changedstate === 'doing') {
-            const startTime = new Date('6/10/2018 4:20 pm');
-            userWantObj.startTime = startTime
-        } else if (changedstate === 'done') {
-            // test용 시간 입력 사용시 new Date()로 사용
-            const endTime = new Date('6/11/2018 3:20 pm');
-            userWantObj.endTime = endTime
-            this.setTurnaroundTime(userWantObj)
+        if (this.checkSyntax(obj)) {
+            const changedstate = obj.nextstatus.toLowerCase().match(/\btodo|doing|done/g).join('')
+            let sameObj = this.findArray(obj)
+            let userWantObj = this.taskArray[this.taskArray.indexOf(...sameObj)]
+            if (changedstate === 'doing') {
+                const startTime = new Date('6/10/2018 4:20 pm');
+                userWantObj.startTime = startTime
+            } else if (changedstate === 'done') {
+                // test용 시간 입력 사용시 new Date()로 사용
+                const endTime = new Date('6/11/2018 3:20 pm');
+                userWantObj.endTime = endTime
+                this.setTurnaroundTime(userWantObj)
+            }
+            return true;
+        } else {
+            console.log('[error] 상태값은 todo,doing,done 중 하나만 입력가능합니다');
+            return false;
         }
+    },
+    checkSyntax(obj) {
+        if (obj.nextstatus.toLowerCase().match(/\btodo|doing|done/g)) return true;
+        return false;
     },
     setTurnaroundTime(userWantObj) {
         let turnaroundTime, endT, startT
@@ -187,11 +204,15 @@ const taskProgram = {
         removedZeroTime = timeString.match(/[1-9]{1,3}[가-힣]{1,2}/g).join(' ')
         return removedZeroTime;
     },
-    remove(obj) {
-        let sameArray = this.findArray(obj);
-        const removedtodo = this.taskArray.splice(this.taskArray.indexOf(...sameArray), 1);
-        console.log(`id : ${removedtodo[0].id}, "${removedtodo[0].name}" 삭제완료.`);
-        this.removeCount++
+    remove(obj, redoundo = 0) {
+        if (this.checkId(obj)) {
+            let sameArray = this.findArray(obj);
+            const removedtodo = this.taskArray.splice(this.taskArray.indexOf(...sameArray), 1);
+            let addArgumnet = removedtodo[0];
+            if (redoundo === 0) this.addclip(this.remove, obj, removedtodo[0].id, 0, addArgumnet);
+            this.taskCount--;
+            console.log(`id : ${removedtodo[0].id}, "${removedtodo[0].name}" 삭제완료.`);
+        }
     },
     findArray(obj) {
         var sameobj = this.taskArray.filter(v => v.id === obj.id)
@@ -313,25 +334,28 @@ const taskProgram = {
     }
 };
 
-taskProgram.add({ name: '친구만나기' });
-taskProgram.undo();
-taskProgram.add({ name: '숨쉬기', tag: 'working' });
-taskProgram.undo();
-taskProgram.add({ name: '' })
+// taskProgram.add({ name: '친구만나기' });
+// taskProgram.undo();
+// taskProgram.add({ name: '숨쉬기', tag: 'working' });
+// taskProgram.undo();
+// taskProgram.add({ name: '' })
 taskProgram.add({ name: '밥먹기', tag: 'Working' });
-taskProgram.add({ name: '손씻기', tag: 'programing' });
-taskProgram.add({ name: '콜라먹기', tag: 'Drinking' });
-taskProgram.undo()
-taskProgram.redo()
-taskProgram.update({ id: 0, nextstatus: 'Doing' });
-taskProgram.update({ id: 2, nextstatus: 'doing' });
-taskProgram.update({ id: 2, nextstatus: 'done' })
-taskProgram.undo()
-taskProgram.redo()
+// taskProgram.add({name : '밥먹 기'})
+// taskProgram.add({ name: '손씻기', tag: 'programing' });
+// taskProgram.add({ name: '콜라먹기', tag: 'Drinking' });
+// taskProgram.undo()
+// taskProgram.redo()
+taskProgram.update({ id: 0, nextstatus: '      Doing' });
+taskProgram.undo();
+taskProgram.redo();
+// todo -> todo 로 가는 버그가있음.
+// taskProgram.update({ id: 2, nextstatus: 'doing' });
+// taskProgram.update({ id: 2, nextstatus: 'done' })
 // taskProgram.update({ id: 2, nextstatus: 'donE' })
-// taskProgram.remove({ id: 0 });
-// taskProgram.showTag('workinG');
-taskProgram.showTags();
+// taskProgram.remove({ id: 144});
+// taskProgram.undo();
+// taskProgram.showTag('workinG')
+// taskProgram.showTags();
 // taskProgram.show('   done      ');
 // taskProgram.showAll();
 
