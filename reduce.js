@@ -6,3 +6,4 @@ var b = a.reduce(function (x, y) {
     return x;
 }, {});
 console.log(b);
+
